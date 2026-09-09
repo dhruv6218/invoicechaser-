@@ -8,7 +8,7 @@ import {
   Bell, Menu, X, ChevronDown, Check, Plus, Lock,
   CreditCard, Sparkles, Search, Zap, Activity,
   Radio, Target, GitCompare, CheckCircle2, FileCode2,
-  Rocket, Building2, MessageCircle, Megaphone
+  Rocket, Building2, MessageCircle, Megaphone, Users, Workflow, Mail, CircleHelp
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useWorkspace } from '../contexts/WorkspaceContext';
@@ -83,6 +83,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
       items: [
         { name: 'Dashboard', path: '/app', icon: LayoutDashboard, desc: 'Overview & metrics' },
         { name: 'Invoices', path: '/app/invoices', icon: FileText, desc: 'Action center' },
+        { name: 'Clients', path: '/app/clients', icon: Users, desc: 'Customer relationships' },
+        { name: 'Sequences', path: '/app/sequences', icon: Workflow, desc: 'Automated follow-ups' },
+        { name: 'Templates', path: '/app/templates', icon: Mail, desc: 'Message library' },
         { name: 'Tone Studio', path: '/app/tone', icon: Bot, desc: 'AI voice cloning', pro: false },
         { name: 'Gateways', path: '/app/gateways', icon: CreditCard, desc: 'Payment connections' },
         { name: 'Analytics', path: '/app/analytics', icon: Activity, desc: 'Recovery reports' },
@@ -91,6 +94,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
     {
       label: 'Account',
       items: [
+        { name: 'Notifications', path: '/app/notifications', icon: Bell, desc: 'Recovery alerts' },
+        { name: 'Help & support', path: '/app/help', icon: CircleHelp, desc: 'Guides and contact' },
         { name: 'Settings', path: '/app/settings', icon: Settings, desc: 'Account & billing' },
       ],
     },
