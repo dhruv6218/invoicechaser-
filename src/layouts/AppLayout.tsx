@@ -129,7 +129,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
             />
             <span className="font-heading text-lg font-black tracking-tighter text-white">ASTRIX AI</span>
           </Link>
-          <button className="md:hidden text-slate-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}>
+          <button type="button" aria-label="Close navigation menu" className="md:hidden text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astrix-teal rounded-md" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -232,8 +232,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
               <span className="text-sm font-bold">Impersonating User: <span className="font-black">{impersonationName}</span></span>
             </div>
             <button 
+              type="button"
               onClick={handleExitImpersonation}
-              className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-xs font-bold transition-colors"
+              className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               Exit & Return to Admin
             </button>
@@ -247,12 +248,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
               <span className="text-sm font-medium">{globalAnnouncement}</span>
             </div>
             <button 
-              onClick={() => {
-                setGlobalAnnouncement('');
-                // If we want it strictly dismissible per user, we could clear it here.
-                // But for the sake of demo, just hiding it in local state.
-              }}
-              className="text-blue-200 hover:text-white p-1"
+              type="button"
+              aria-label="Dismiss announcement"
+              onClick={() => setGlobalAnnouncement('')}
+              className="text-blue-200 hover:text-white p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded"
             >
               <X className="w-4 h-4" />
             </button>
@@ -263,6 +262,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-30 flex items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-3">
             <button 
+              type="button"
+              aria-label="Open navigation menu"
               className="md:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astrix-teal rounded-lg"
               onClick={() => setIsMobileMenuOpen(true)}
             >
@@ -285,9 +286,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, title, subtitle,
             </Link>
             {actions && <div className="hidden sm:block">{actions}</div>}
             <div className="h-6 w-[1px] bg-gray-200 mx-1 hidden sm:block"></div>
-            <button className="text-gray-400 hover:text-gray-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astrix-teal rounded-full p-1.5 relative">
+            <Link href="/app/notifications" aria-label="Open notifications" className="text-gray-400 hover:text-gray-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-astrix-teal rounded-full p-1.5 relative">
               <Bell className="w-5 h-5" />
-            </button>
+            </Link>
           </div>
         </header>
 

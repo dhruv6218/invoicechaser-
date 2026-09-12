@@ -9,10 +9,12 @@ export const Contact = () => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError('');
     
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -31,11 +33,10 @@ export const Contact = () => {
         form.reset(); // Clear the form fields
         setTimeout(() => setIsSuccess(false), 5000);
       } else {
-        alert("Oops! There was a problem submitting your form.");
+        setSubmitError('We could not send your message. Please try again or email help.astrix@gmail.com.');
       }
-    } catch (error) {
-      console.error("Error submitting form", error);
-      alert("Oops! There was a problem submitting your form.");
+    } catch {
+      setSubmitError('We could not send your message. Please try again or email help.astrix@gmail.com.');
     } finally {
       setIsSubmitting(false);
     }
@@ -173,6 +174,12 @@ export const Contact = () => {
                       placeholder="How can we help you?" 
                     ></textarea>
                   </div>
+
+                  {submitError && (
+                    <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                      {submitError}
+                    </div>
+                  )}
 
                   <button 
                     type="submit" 
