@@ -1,68 +1,50 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { AppLayout } from '../../layouts/AppLayout';
 import { 
   FileText, CheckCircle2, AlertCircle, Clock, Send, TrendingUp, Pause, Play, Plus, Eye, Search, Download, X
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
+import { useInvoices, api } from '../../lib/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Skeleton } from '../../components/ui/Skeleton';
 
-interface Invoice {
-  id: string;
-  client_name: string;
-  client_email: string;
-  amount: number;
-  currency: string;
-  due_date: string;
-  status: 'pending' | 'paid' | 'paused' | 'disputed';
-  days_overdue: number;
-  ai_status: 'nudge_sent' | 'escalated' | 'paid' | 'pending';
-  last_chased_at: string | null;
-  reminder_count: number;
-}
-
-const MOCK_INVOICES: Invoice[] = [
-  { id: '1', client_name: 'Acme Corp', client_email: 'billing@acme.com', amount: 2400, currency: 'USD', due_date: '2025-01-01', status: 'pending', days_overdue: 14, ai_status: 'nudge_sent', last_chased_at: '2025-01-10', reminder_count: 2 },
-  { id: '2', client_name: 'TechStart GmbH', client_email: 'finance@techstart.de', amount: 1800, currency: 'EUR', due_date: '2024-12-28', status: 'pending', days_overdue: 18, ai_status: 'escalated', last_chased_at: '2025-01-08', reminder_count: 3 },
-  { id: '3', client_name: 'DataFlow Ltd', client_email: 'accounts@dataflow.co', amount: 890, currency: 'USD', due_date: '2025-01-05', status: 'pending', days_overdue: 10, ai_status: 'pending', last_chased_at: null, reminder_count: 0 },
-  { id: '4', client_name: 'InnovateLab', client_email: 'pay@innovatelab.com', amount: 1500, currency: 'USD', due_date: '2024-12-15', status: 'paid', days_overdue: 0, ai_status: 'paid', last_chased_at: '2024-12-20', reminder_count: 1 },
-  { id: '5', client_name: 'CloudScale Inc', client_email: 'ap@cloudscale.io', amount: 3200, currency: 'USD', due_date: '2024-12-20', status: 'paused', days_overdue: 25, ai_status: 'nudge_sent', last_chased_at: '2025-01-05', reminder_count: 2 },
-];
+const formatCurrency = (value: number, currency = 'USD') => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+};
 
 export const Invoices = () => {
-  const { user } = useAuth();
+  const { activeWorkspace } = useWorkspace();
+  const { data: invoices, isLoading, refetch } = useInvoices(activeWorkspace?.id);
   const { addToast } = useToast();
   
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'pending' | 'paused' | 'paid'>('all');
   const [query, setQuery] = useState('');
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setInvoices(MOCK_INVOICES);
-      setIsLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const formatCurrency = (value: number, currency = 'USD') => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+  const handlePauseAI = async (id: string) => {
+    try {
+      await api.invoices.update(id, { status: 'paused' });
+      refetch();
+      addToast('AI paused for this invoice. You can resume anytime.', 'success');
+    } catch (err) {
+      addToast('Failed to pause AI.', 'error');
+    }
   };
 
-  const handlePauseAI = (id: string) => {
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status: 'paused' as const } : inv));
-    addToast('AI paused for this invoice. You can resume anytime.', 'success');
+  const handleResumeAI = async (id: string) => {
+    try {
+      await api.invoices.update(id, { status: 'pending' });
+      refetch();
+      addToast('AI resumed. Next reminder scheduled in 3 days.', 'success');
+    } catch (err) {
+      addToast('Failed to resume AI.', 'error');
+    }
   };
 
-  const handleResumeAI = (id: string) => {
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status: 'pending' as const } : inv));
-    addToast('AI resumed. Next reminder scheduled in 3 days.', 'success');
-  };
-
-  const getStatusBadge = (status: Invoice['status'], aiStatus: Invoice['ai_status']) => {
+  const getStatusBadge = (status: string, aiStatus: string) => {
     if (status === 'paid') return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-green-100 text-green-700 border border-green-200 whitespace-nowrap"><CheckCircle2 className="w-3 h-3" /> Paid</span>;
     if (status === 'paused') return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap"><Pause className="w-3 h-3" /> AI Paused</span>;
     if (status === 'disputed') return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200 whitespace-nowrap"><AlertCircle className="w-3 h-3" /> Disputed</span>;
@@ -73,11 +55,14 @@ export const Invoices = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => {
-    const matchesFilter = invoiceFilter === 'all' || inv.status === invoiceFilter;
-    const matchesQuery = `${inv.client_name} ${inv.client_email} ${inv.id}`.toLowerCase().includes(query.toLowerCase());
-    return matchesFilter && matchesQuery;
-  });
+  const filteredInvoices = useMemo(() => {
+    if (!invoices) return [];
+    return invoices.filter(inv => {
+      const matchesFilter = invoiceFilter === 'all' || inv.status === invoiceFilter;
+      const matchesQuery = `${inv.client_name} ${inv.client_email} ${inv.id}`.toLowerCase().includes(query.toLowerCase());
+      return matchesFilter && matchesQuery;
+    });
+  }, [invoices, invoiceFilter, query]);
 
   const toggleSelected = (id: string) => setSelectedInvoices((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const exportInvoices = () => addToast(`${filteredInvoices.length} invoices ready to export`, 'success');
@@ -113,10 +98,10 @@ export const Invoices = () => {
         {/* Stats Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'All Invoices', count: invoices.length, color: 'text-gray-900', bg: 'bg-white border border-gray-200 shadow-sm', filter: 'all' as const },
-            { label: 'Pending', count: invoices.filter(i => i.status === 'pending').length, color: 'text-yellow-700', bg: 'bg-yellow-50 border border-yellow-200 shadow-sm', filter: 'pending' as const },
-            { label: 'Paused', count: invoices.filter(i => i.status === 'paused').length, color: 'text-gray-600', bg: 'bg-gray-50 border border-gray-200 shadow-sm', filter: 'paused' as const },
-            { label: 'Paid', count: invoices.filter(i => i.status === 'paid').length, color: 'text-green-700', bg: 'bg-green-50 border border-green-200 shadow-sm', filter: 'paid' as const },
+            { label: 'All Invoices', count: invoices?.length || 0, color: 'text-gray-900', bg: 'bg-white border border-gray-200 shadow-sm', filter: 'all' as const },
+            { label: 'Pending', count: invoices?.filter(i => i.status === 'pending').length || 0, color: 'text-yellow-700', bg: 'bg-yellow-50 border border-yellow-200 shadow-sm', filter: 'pending' as const },
+            { label: 'Paused', count: invoices?.filter(i => i.status === 'paused').length || 0, color: 'text-gray-600', bg: 'bg-gray-50 border border-gray-200 shadow-sm', filter: 'paused' as const },
+            { label: 'Paid', count: invoices?.filter(i => i.status === 'paid').length || 0, color: 'text-green-700', bg: 'bg-green-50 border border-green-200 shadow-sm', filter: 'paid' as const },
           ].map(stat => (
             <button 
               key={stat.label}
@@ -138,7 +123,7 @@ export const Invoices = () => {
             <div className="flex flex-wrap items-center justify-end gap-2">
               {selectedInvoices.length > 0 && <button onClick={() => { addToast(`${selectedInvoices.length} reminders queued`, 'success'); setSelectedInvoices([]); }} className="rounded-lg bg-brand-blue px-3 py-2 text-xs font-bold text-white">Send reminders ({selectedInvoices.length})</button>}
               <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500"><Search className="h-3.5 w-3.5" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search invoices" aria-label="Search invoices" className="w-28 bg-transparent outline-none sm:w-40" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}</label>
-              <button onClick={exportInvoices} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors"><Download className="w-3.5 h-3.5" /> Export CSV</button>
+              <button onClick={exportInvoices} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors"><Download className="h-3.5 w-3.5" /> Export CSV</button>
             </div>
           </div>
 
@@ -212,8 +197,8 @@ export const Invoices = () => {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="font-heading text-lg font-bold text-gray-900 mb-1">All clear!</h3>
-              <p className="text-sm text-gray-500 mb-6">No {invoiceFilter !== 'all' ? invoiceFilter : ''} invoices found.</p>
+              <h3 className="font-heading text-lg font-bold text-gray-900 mb-1">{invoices && invoices.length > 0 ? 'All clear!' : 'No invoices yet'}</h3>
+              <p className="text-sm text-gray-500 mb-6">{invoices && invoices.length > 0 ? `No ${invoiceFilter !== 'all' ? invoiceFilter : ''} invoices found.` : 'Add your first invoice to start the AI recovery engine.'}</p>
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('open-upload-modal'))}
                 className="bg-brand-blue text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm shadow-sm"

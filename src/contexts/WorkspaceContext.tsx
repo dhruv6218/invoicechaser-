@@ -1,9 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { getSupabaseBrowser } from '../lib/supabase-browser';
 import { Workspace } from '../types';
-import { initializeWorkspace } from '../lib/api';
 
 interface WorkspaceContextType {
   activeWorkspace: Workspace | null;
@@ -20,63 +20,85 @@ const WorkspaceContext = createContext<WorkspaceContextType>({
   updateWorkspaceName: () => {},
 });
 
-const STORAGE_KEY = 'astrix_demo_workspace';
-
-const DEFAULT_MOCK_WORKSPACE: Workspace = {
-  id: 'ws-demo-astrix',
-  name: 'Acme Corp Workspace',
-  slug: 'acme-corp',
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-  logo_url: null,
-  plan: 'Hook',
-  created_at: new Date().toISOString(),
-};
+const STORAGE_KEY = 'astrix_active_workspace_id';
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([DEFAULT_MOCK_WORKSPACE]);
-  const [activeWorkspace, setActiveWs] = useState<Workspace | null>(DEFAULT_MOCK_WORKSPACE);
-  const [isWorkspaceInitializing, setIsWorkspaceInitializing] = useState(false);
+  const supabase = getSupabaseBrowser();
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspace, setActiveWs] = useState<Workspace | null>(null);
+  const [isWorkspaceInitializing, setIsWorkspaceInitializing] = useState(true);
 
-  const fetchWorkspaces = async () => {
-    setIsWorkspaceInitializing(true);
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const ws = JSON.parse(stored) as Workspace;
-        setWorkspaces([ws]);
-        setActiveWs(ws);
-        initializeWorkspace(ws.id);
-      } catch {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_MOCK_WORKSPACE));
-        setWorkspaces([DEFAULT_MOCK_WORKSPACE]);
-        setActiveWs(DEFAULT_MOCK_WORKSPACE);
-        initializeWorkspace(DEFAULT_MOCK_WORKSPACE.id);
-      }
-    } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_MOCK_WORKSPACE));
-      setWorkspaces([DEFAULT_MOCK_WORKSPACE]);
-      setActiveWs(DEFAULT_MOCK_WORKSPACE);
-      initializeWorkspace(DEFAULT_MOCK_WORKSPACE.id);
+  const fetchWorkspaces = useCallback(async () => {
+    if (!user) {
+      setWorkspaces([]);
+      setActiveWs(null);
+      setIsWorkspaceInitializing(false);
+      return;
     }
-    setIsWorkspaceInitializing(false);
-  };
+
+    setIsWorkspaceInitializing(true);
+    try {
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const wsList = (data || []) as Workspace[];
+      setWorkspaces(wsList);
+
+      // Restore active workspace from localStorage or use first
+      let active = wsList[0] || null;
+      if (typeof window !== 'undefined') {
+        const storedId = localStorage.getItem(STORAGE_KEY);
+        if (storedId) {
+          const found = wsList.find(w => w.id === storedId);
+          if (found) active = found;
+        }
+      }
+
+      setActiveWs(active);
+      if (active && typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, active.id);
+      }
+    } catch (err) {
+      console.error('[Workspace] Failed to fetch:', err);
+      setWorkspaces([]);
+      setActiveWs(null);
+    } finally {
+      setIsWorkspaceInitializing(false);
+    }
+  }, [user, supabase]);
 
   const handleSetActiveWorkspace = (ws: Workspace) => {
     setActiveWs(ws);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ws));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, ws.id);
+    }
   };
 
-  const updateWorkspaceName = (name: string) => {
+  const updateWorkspaceName = async (name: string) => {
     if (!activeWorkspace) return;
     const updated = { ...activeWorkspace, name };
-    handleSetActiveWorkspace(updated);
-    setWorkspaces([updated]);
+    setActiveWs(updated);
+    setWorkspaces(prev => prev.map(w => w.id === activeWorkspace.id ? updated : w));
+
+    try {
+      await supabase
+        .from('workspaces')
+        .update({ name })
+        .eq('id', activeWorkspace.id);
+    } catch (err) {
+      console.error('[Workspace] Failed to update name:', err);
+    }
   };
 
   useEffect(() => {
     fetchWorkspaces();
-  }, [user]);
+  }, [user, fetchWorkspaces]);
 
   return (
     <WorkspaceContext.Provider value={{

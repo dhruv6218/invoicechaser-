@@ -19,7 +19,7 @@ interface GatewayOption {
 const GATEWAYS: GatewayOption[] = [
   { type: 'stripe', label: 'Stripe', icon: CreditCard, placeholder: 'sk_live_... or sk_test_...', hint: 'API key from Stripe Dashboard ? Developers ? API Keys' },
   { type: 'razorpay', label: 'Razorpay', icon: Zap, placeholder: 'rzp_live_... or rzp_test_...', hint: 'API key from Razorpay Dashboard ? Settings ? API Keys' },
-  { type: 'upi', label: 'UPI / Static Link', icon: LinkIcon, placeholder: 'https://pay.example.com/you or upi://pay?pa=...', hint: 'Paste any payment link, UPI deeplink, or hosted checkout URL' },
+  { type: 'custom', label: 'UPI / Static Link', icon: LinkIcon, placeholder: 'https://pay.example.com/you or upi://pay?pa=...', hint: 'Paste any payment link, UPI deeplink, or hosted checkout URL' },
 ];
 
 export const Step1Gateway = () => {
@@ -42,8 +42,8 @@ export const Step1Gateway = () => {
         workspace_id: activeWorkspace.id,
         type: selectedGateway,
         label: selected?.label || selectedGateway,
-        api_key: selectedGateway !== 'upi' ? apiKey.trim() : undefined,
-        static_url: selectedGateway === 'upi' ? apiKey.trim() : undefined,
+        api_key: selectedGateway !== 'custom' ? apiKey.trim() : undefined,
+        static_url: selectedGateway === 'custom' ? apiKey.trim() : undefined,
         is_active: true,
       });
       setConnected(true);
@@ -106,15 +106,15 @@ export const Step1Gateway = () => {
           {selectedGateway && selected && (
             <form onSubmit={handleConnect} className="bg-white border border-gray-200 rounded-3xl p-6 shadow-apple animate-[fadeIn_0.25s_ease-out]">
               <label className="block text-sm font-bold text-gray-900 mb-1">
-                {selectedGateway === 'upi' ? 'Payment Link / UPI URL' : `${selected.label} API Key`}
+                {selectedGateway === 'custom' ? 'Payment Link / UPI URL' : `${selected.label} API Key`}
               </label>
               <p className="text-xs text-gray-500 mb-3">{selected.hint}</p>
-              <input type={selectedGateway === 'upi' ? 'url' : 'text'} required value={apiKey} onChange={e => setApiKey(e.target.value)}
+              <input type={selectedGateway === 'custom' ? 'url' : 'text'} required value={apiKey} onChange={e => setApiKey(e.target.value)}
                 placeholder={selected.placeholder}
                 className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl p-3.5 outline-none focus:ring-4 focus:ring-brand-blue/20 focus:border-brand-blue font-mono transition-all mb-4" />
               <div className="flex items-center gap-2 mb-4 p-3 bg-yellow-50 border border-yellow-100 rounded-xl">
                 <AlertCircle className="w-4 h-4 text-yellow-600 shrink-0" />
-                <p className="text-xs text-yellow-800 font-medium">Demo mode: Keys are stored locally and never sent to a server.</p>
+                <p className="text-xs text-green-800 font-medium">Your API key is encrypted with AES-256 and stored securely. We never expose it in the browser.</p>
               </div>
               <button type="submit" disabled={isLoading || !apiKey.trim()}
                 className="w-full bg-brand-blue text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors">

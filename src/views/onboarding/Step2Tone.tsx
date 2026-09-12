@@ -29,29 +29,66 @@ export const Step2Tone = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [preview, setPreview] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
 
-  const handleGeneratePreview = () => {
+  const handleGeneratePreview = async () => {
     if (!sampleEmails.trim()) { addToast('Paste at least one sample email first.', 'warning'); return; }
     setIsGenerating(true);
-    setTimeout(() => {
-      setPreview(TONE_PREVIEWS[toneLevel]);
+    try {
+      // Generate tone prompt from sample emails
+      const toneRes = await fetch('/api/ai/generate-tone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleEmails }),
+      });
+      if (!toneRes.ok) throw new Error('Failed to analyze tone');
+      const toneData = await toneRes.json();
+      setAiPrompt(toneData.tonePrompt);
+
+      // Generate preview email
+      const emailRes = await fetch('/api/ai/generate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: 'John',
+          invoiceAmount: 2400,
+          currency: 'USD',
+          invoiceId: 'INV-001',
+          daysOverdue: 7,
+          reminderCount: 1,
+          toneLevel,
+          tonePrompt: toneData.tonePrompt,
+          paymentLink: 'pay.astrix.ai/INV-001',
+        }),
+      });
+      if (!emailRes.ok) throw new Error('Failed to generate email');
+      const emailData = await emailRes.json();
+      setPreview(emailData.emailContent);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'AI generation failed', 'error');
+    } finally {
       setIsGenerating(false);
-    }, 1200);
+    }
   };
 
   const handleContinue = async () => {
     if (!activeWorkspace) return;
     setIsSaving(true);
-    await api.tone.save({
-      workspace_id: activeWorkspace.id,
-      sample_emails: sampleEmails,
-      tone_level: toneLevel,
-      ai_prompt: `Tone level ${toneLevel}: ${TONE_OPTIONS[toneLevel - 1].label}. Sample: ${sampleEmails.substring(0, 200)}`,
-      updated_at: new Date().toISOString(),
-    });
-    addToast('Tone saved successfully!', 'success');
-    setIsSaving(false);
-    router.push('/onboarding/step-3');
+    try {
+      await api.tone.save({
+        workspace_id: activeWorkspace.id,
+        sample_emails: sampleEmails,
+        tone_level: toneLevel,
+        ai_prompt: aiPrompt || `Tone level ${toneLevel}: ${TONE_OPTIONS[toneLevel - 1].label}. Professional and friendly.`,
+        updated_at: new Date().toISOString(),
+      });
+      addToast('Tone saved successfully!', 'success');
+      router.push('/onboarding/step-3');
+    } catch (err) {
+      addToast('Failed to save tone settings', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSkip = () => router.push('/onboarding/step-3');

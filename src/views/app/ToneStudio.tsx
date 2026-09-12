@@ -1,35 +1,115 @@
-import React, { useState } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { AppLayout } from '../../layouts/AppLayout';
 import { Bot, RefreshCw, Sparkles, Zap, Copy } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
+import { useToneSettings, api } from '../../lib/api';
 import { AIBadge } from '../../components/ui/AIBadge';
 
 export const ToneStudio = () => {
+  const { activeWorkspace } = useWorkspace();
+  const { data: existingTone, isLoading: toneLoading } = useToneSettings(activeWorkspace?.id);
   const { addToast } = useToast();
   
   const [toneLevel, setToneLevel] = useState(2);
   const [toneSample, setToneSample] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
   const [generatedPreview, setGeneratedPreview] = useState('');
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleGeneratePreview = () => {
+  // Load existing tone settings
+  useEffect(() => {
+    if (existingTone) {
+      setToneSample(existingTone.sample_emails || '');
+      setToneLevel(existingTone.tone_level || 2);
+      setAiPrompt(existingTone.ai_prompt || '');
+    }
+  }, [existingTone]);
+
+  const handleGeneratePreview = async () => {
     if (!toneSample.trim()) { addToast('Paste a sample email first.', 'warning'); return; }
     setIsGeneratingPreview(true);
-    setTimeout(() => {
-      const previews: Record<number, string> = {
-        1: `Hey Sarah! Hope you're doing well.\n\nJust a quick heads-up — Invoice #1042 for $2,400 was due on Jan 1st. Totally understand things get busy, but wanted to make sure this didn't slip through the cracks.\n\nHere's a quick link if you'd like to sort it now: pay.astrix.ai/1042\n\nThanks so much! 😊`,
-        2: `Hi Sarah,\n\nFollowing up on Invoice #1042 ($2,400) — it's now 14 days past due.\n\nI'd appreciate if you could process this at your earliest convenience. You can pay instantly here: pay.astrix.ai/1042\n\nLet me know if there are any issues.\n\nBest,`,
-        3: `Sarah,\n\nThis is my third follow-up regarding Invoice #1042 for $2,400, now 14 days overdue.\n\nImmediate payment is required. Please use the link below to settle this today: pay.astrix.ai/1042\n\nIf payment is not received within 48 hours, I will need to consider escalation options.\n\nRegards,`,
-      };
-      setGeneratedPreview(previews[toneLevel] || previews[2]);
+    try {
+      // First, generate a tone prompt if we don't have one
+      let prompt = aiPrompt;
+      if (!prompt) {
+        const toneRes = await fetch('/api/ai/generate-tone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sampleEmails: toneSample }),
+        });
+        if (!toneRes.ok) throw new Error('Failed to analyze tone');
+        const toneData = await toneRes.json();
+        prompt = toneData.tonePrompt;
+        setAiPrompt(prompt);
+      }
+
+      // Then generate a preview email
+      const emailRes = await fetch('/api/ai/generate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: 'Sarah',
+          invoiceAmount: 2400,
+          currency: 'USD',
+          invoiceId: 'INV-1042',
+          daysOverdue: 14,
+          reminderCount: 1,
+          toneLevel,
+          tonePrompt: prompt,
+          paymentLink: 'pay.astrix.ai/INV-1042',
+        }),
+      });
+      if (!emailRes.ok) throw new Error('Failed to generate email');
+      const emailData = await emailRes.json();
+      setGeneratedPreview(emailData.emailContent);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'AI generation failed', 'error');
+    } finally {
       setIsGeneratingPreview(false);
-    }, 1500);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!activeWorkspace) return;
+    setIsSaving(true);
+    try {
+      await api.tone.save({
+        workspace_id: activeWorkspace.id,
+        sample_emails: toneSample,
+        tone_level: toneLevel,
+        ai_prompt: aiPrompt || `Tone level ${toneLevel}. Professional and friendly. Sample: ${toneSample.substring(0, 200)}`,
+        updated_at: new Date().toISOString(),
+      });
+      addToast('Tone settings saved!', 'success');
+    } catch (err) {
+      addToast('Failed to save tone settings', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(generatedPreview);
     addToast('Copied to clipboard', 'success');
   };
+
+  if (toneLoading) {
+    return (
+      <AppLayout title="Tone Studio" subtitle="Train the AI to sound exactly like you.">
+        <div className="animate-pulse space-y-6">
+          <div className="h-32 rounded-2xl bg-gray-100" />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="h-96 rounded-2xl bg-gray-100" />
+            <div className="h-96 rounded-2xl bg-gray-100" />
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout 
@@ -64,7 +144,7 @@ export const ToneStudio = () => {
                 <label className="block text-sm font-bold text-gray-900 mb-2">Sample Email(s)</label>
                 <textarea 
                   value={toneSample}
-                  onChange={e => setToneSample(e.target.value)}
+                  onChange={e => { setToneSample(e.target.value); setAiPrompt(''); }}
                   placeholder="Hey team, just following up on the attached invoice. Let me know if you need anything else from my end! Best, John..."
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm outline-none focus:ring-2 focus:ring-brand-blue resize-none h-48 transition-all"
                 />
@@ -74,7 +154,7 @@ export const ToneStudio = () => {
                 <label className="block text-sm font-bold text-gray-900 mb-3">
                   2. Select Escalation Level — <span className="text-brand-blue">Level {toneLevel}</span>
                   <span className="ml-2 text-gray-400 font-normal">
-                    ({toneLevel === 1 ? 'Friendly 😊' : toneLevel === 2 ? 'Balanced' : 'Firm 📋'})
+                    ({toneLevel === 1 ? 'Friendly' : toneLevel === 2 ? 'Balanced' : 'Firm'})
                   </span>
                 </label>
                 <div className="grid grid-cols-3 gap-3 mb-3">
@@ -103,17 +183,28 @@ export const ToneStudio = () => {
                 </p>
               </div>
 
-              <button 
-                onClick={handleGeneratePreview}
-                disabled={isGeneratingPreview || !toneSample.trim()}
-                className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold hover:bg-black disabled:opacity-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
-              >
-                {isGeneratingPreview ? (
-                  <><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing & Generating...</>
-                ) : (
-                  <><Sparkles className="w-4 h-4 text-brand-yellow" /> Generate Preview</>
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleGeneratePreview}
+                  disabled={isGeneratingPreview || !toneSample.trim()}
+                  className="flex-1 bg-gray-900 text-white py-3.5 rounded-xl font-bold hover:bg-black disabled:opacity-50 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
+                >
+                  {isGeneratingPreview ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing & Generating...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 text-brand-yellow" /> Generate Preview</>
+                  )}
+                </button>
+                {aiPrompt && (
+                  <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-brand-blue text-white px-6 py-3.5 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm shadow-sm"
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
 

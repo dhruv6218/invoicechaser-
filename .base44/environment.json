@@ -2,5 +2,41 @@
   "previewPort": 3000,
   "healthPath": "/",
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
-  "secrets": []
+  "secrets": [
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_URL",
+      "description": "Supabase Project URL — from Supabase Dashboard > Project Settings > API > Project URL"
+    },
+    {
+      "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "description": "Supabase Anon (public) Key — from Supabase Dashboard > Project Settings > API > anon public"
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "description": "Supabase Service Role Key — from Supabase Dashboard > Project Settings > API > service_role (server-only, never expose in browser)",
+      "requiredAtBoot": true
+    },
+    {
+      "name": "GEMINI_API_KEY",
+      "description": "Google Gemini API Key — from Google AI Studio (aistudio.google.com)",
+      "requiredAtBoot": true
+    },
+    {
+      "name": "OPENROUTER_API_KEY",
+      "description": "OpenRouter API Key (fallback AI) — from openrouter.ai > Keys"
+    },
+    {
+      "name": "RESEND_API_KEY",
+      "description": "Resend API Key for sending emails — from resend.com > API Keys",
+      "requiredAtBoot": true
+    },
+    {
+      "name": "DODO_PAYMENTS_API_KEY",
+      "description": "Dodo Payments API Key for subscription management — from Dodo Payments Dashboard"
+    },
+    {
+      "name": "DODO_PAYMENTS_WEBHOOK_SECRET",
+      "description": "Dodo Payments Webhook Secret for verifying webhook signatures"
+    }
+  ]
 }

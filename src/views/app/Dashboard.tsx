@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { AppLayout } from '../../layouts/AppLayout';
 import { 
   TrendingUp, DollarSign, AlertCircle, Zap, Activity,
@@ -8,15 +8,9 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
+import { useInvoices, useActivity } from '../../lib/api';
 import { Skeleton } from '../../components/ui/Skeleton';
-
-interface ActivityItem {
-  id: string;
-  type: 'reminder_sent' | 'payment_received' | 'invoice_created' | 'ai_action';
-  message: string;
-  timestamp: string;
-  amount?: number;
-}
 
 interface DashboardMetrics {
   total_recovered: number;
@@ -27,47 +21,52 @@ interface DashboardMetrics {
   this_month_recovered: number;
 }
 
-const MOCK_ACTIVITIES: ActivityItem[] = [
-  { id: '1', type: 'reminder_sent', message: 'AI sent a friendly nudge to Acme Corp for Invoice #1042', timestamp: '2 hours ago', amount: 2400 },
-  { id: '2', type: 'payment_received', message: 'Payment received from InnovateLab � Invoice #1039 cleared', timestamp: '5 hours ago', amount: 1500 },
-  { id: '3', type: 'ai_action', message: 'AI escalated TechStart GmbH to Level 2 (Firm tone)', timestamp: '1 day ago' },
-  { id: '4', type: 'invoice_created', message: 'New invoice added for DataFlow Ltd', timestamp: '2 days ago', amount: 890 },
-  { id: '5', type: 'reminder_sent', message: 'AI sent 2nd reminder to CloudScale Inc', timestamp: '3 days ago', amount: 3200 },
-];
+const formatCurrency = (value: number, currency = 'USD') => {
+  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+};
 
-const MOCK_METRICS: DashboardMetrics = {
-  total_recovered: 47200,
-  currently_outstanding: 8290,
-  active_chases: 3,
-  recovery_rate: 94,
-  pending_invoices: 4,
-  this_month_recovered: 12400
+const formatTimeAgo = (iso: string) => {
+  const diff = Date.now() - new Date(iso).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'Just now';
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
 };
 
 export const Dashboard = () => {
   const { user } = useAuth();
   const router = useRouter();
+  const { activeWorkspace } = useWorkspace();
+  const { data: invoices, isLoading: invoicesLoading } = useInvoices(activeWorkspace?.id);
+  const { data: activities, isLoading: activityLoading } = useActivity();
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-
+  const isLoading = invoicesLoading || activityLoading;
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setActivities(MOCK_ACTIVITIES);
-      setMetrics(MOCK_METRICS);
-      setIsLoading(false);
-    }, 700);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const formatCurrency = (value: number, currency = 'USD') => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
-  };
+  const metrics: DashboardMetrics = useMemo(() => {
+    if (!invoices || invoices.length === 0) {
+      return { total_recovered: 0, currently_outstanding: 0, active_chases: 0, recovery_rate: 0, pending_invoices: 0, this_month_recovered: 0 };
+    }
+    const paid = invoices.filter(i => i.status === 'paid');
+    const pending = invoices.filter(i => i.status === 'pending');
+    const totalRecovered = paid.reduce((sum, i) => sum + i.amount, 0);
+    const outstanding = pending.reduce((sum, i) => sum + i.amount, 0);
+    const activeChases = pending.filter(i => i.ai_status !== 'pending').length;
+    const now = new Date();
+    const thisMonth = paid.filter(i => new Date(i.created_at).getMonth() === now.getMonth() && new Date(i.created_at).getFullYear() === now.getFullYear()).reduce((sum, i) => sum + i.amount, 0);
+    const recoveryRate = invoices.length > 0 ? Math.round((paid.length / invoices.length) * 100) : 0;
+    return {
+      total_recovered: totalRecovered,
+      currently_outstanding: outstanding,
+      active_chases: activeChases,
+      recovery_rate: recoveryRate,
+      pending_invoices: pending.length,
+      this_month_recovered: thisMonth,
+    };
+  }, [invoices]);
 
   if (isLoading) {
     return (
@@ -102,9 +101,9 @@ export const Dashboard = () => {
                 <div className="p-2 bg-green-100 rounded-xl"><DollarSign className="w-4 h-4 text-green-600" /></div>
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Total Recovered</span>
               </div>
-              <div className="text-3xl font-heading font-black text-gray-900">{formatCurrency(metrics?.total_recovered || 0)}</div>
+              <div className="text-3xl font-heading font-black text-gray-900">{formatCurrency(metrics.total_recovered)}</div>
               <div className="text-xs text-green-600 font-bold mt-2 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> +{formatCurrency(metrics?.this_month_recovered || 0)} this month
+                <TrendingUp className="w-3 h-3" /> +{formatCurrency(metrics.this_month_recovered)} this month
               </div>
             </div>
           </div>
@@ -116,8 +115,8 @@ export const Dashboard = () => {
                 <div className="p-2 bg-red-100 rounded-xl"><AlertCircle className="w-4 h-4 text-red-500" /></div>
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Outstanding</span>
               </div>
-              <div className="text-3xl font-heading font-black text-gray-900">{formatCurrency(metrics?.currently_outstanding || 0)}</div>
-              <div className="text-xs text-gray-500 font-bold mt-2">{metrics?.pending_invoices} invoices awaiting payment</div>
+              <div className="text-3xl font-heading font-black text-gray-900">{formatCurrency(metrics.currently_outstanding)}</div>
+              <div className="text-xs text-gray-500 font-bold mt-2">{metrics.pending_invoices} invoices awaiting payment</div>
             </div>
           </div>
 
@@ -128,9 +127,9 @@ export const Dashboard = () => {
                 <div className="p-2 bg-teal-100 rounded-xl"><Zap className="w-4 h-4 text-astrix-teal" /></div>
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Recovery Rate</span>
               </div>
-              <div className="text-3xl font-heading font-black text-astrix-teal">{metrics?.recovery_rate}%</div>
+              <div className="text-3xl font-heading font-black text-astrix-teal">{metrics.recovery_rate}%</div>
               <div className="mt-3 w-full bg-gray-100 rounded-full h-1.5">
-                <div className="bg-astrix-teal h-1.5 rounded-full" style={{ width: `${metrics?.recovery_rate}%` }}></div>
+                <div className="bg-astrix-teal h-1.5 rounded-full" style={{ width: `${metrics.recovery_rate}%` }}></div>
               </div>
             </div>
           </div>
@@ -142,7 +141,7 @@ export const Dashboard = () => {
                 <div className="p-2 bg-blue-100 rounded-xl"><Activity className="w-4 h-4 text-brand-blue" /></div>
                 <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Active Chases</span>
               </div>
-              <div className="text-3xl font-heading font-black text-gray-900">{metrics?.active_chases}</div>
+              <div className="text-3xl font-heading font-black text-gray-900">{metrics.active_chases}</div>
               <div className="text-xs text-brand-blue font-bold mt-2 flex items-center gap-1">
                 <Bot className="w-3 h-3" /> AI running autonomously
               </div>
@@ -164,29 +163,38 @@ export const Dashboard = () => {
               </span>
             </div>
             <div className="divide-y divide-gray-50 max-h-[380px] overflow-y-auto">
-              {activities.map(activity => (
+              {activities && activities.length > 0 ? activities.map(activity => (
                 <div key={activity.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                     activity.type === 'payment_received' ? 'bg-green-100' :
                     activity.type === 'reminder_sent' ? 'bg-blue-100' :
+                    activity.type === 'escalated' ? 'bg-purple-100' :
                     activity.type === 'ai_action' ? 'bg-purple-100' : 'bg-gray-100'
                   }`}>
                     {activity.type === 'payment_received' ? <DollarSign className="w-5 h-5 text-green-600" /> :
                      activity.type === 'reminder_sent' ? <Send className="w-5 h-5 text-blue-600" /> :
-                     activity.type === 'ai_action' ? <Bot className="w-5 h-5 text-purple-600" /> :
+                     activity.type === 'escalated' || activity.type === 'ai_action' ? <Bot className="w-5 h-5 text-purple-600" /> :
                      <FileText className="w-5 h-5 text-gray-600" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-900 font-medium leading-snug">{activity.message}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-gray-400">{activity.timestamp}</span>
+                      <span className="text-xs text-gray-400">{formatTimeAgo(activity.timestamp)}</span>
                       {activity.amount && (
                         <span className="text-xs font-bold text-gray-600">{formatCurrency(activity.amount)}</span>
                       )}
                     </div>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Activity className="w-8 h-8 text-gray-300" />
+                  </div>
+                  <h3 className="font-heading text-lg font-bold text-gray-900 mb-1">No activity yet</h3>
+                  <p className="text-sm text-gray-500">Activity will appear here once the AI starts chasing invoices.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -210,7 +218,7 @@ export const Dashboard = () => {
                     <span>Last run</span><span className="text-white font-bold">Today 9:00 AM</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
-                    <span>Reminders sent</span><span className="text-green-400 font-bold">3 today</span>
+                    <span>Reminders sent</span><span className="text-green-400 font-bold">{activities?.filter(a => a.type === 'reminder_sent' || a.type === 'escalated').length || 0} today</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
                     <span>Guardrail</span><span className="text-astrix-teal font-bold">3-5 day gap active</span>
