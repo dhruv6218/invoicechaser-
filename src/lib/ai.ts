@@ -60,7 +60,7 @@ async function callOpenRouter(prompt: string, systemPrompt?: string): Promise<st
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'deepseek/deepseek-chat:free',
+      model: 'nex-agi/nex-n2.5-mini:free',
       messages: [
         ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
         { role: 'user', content: prompt },
