@@ -101,13 +101,32 @@ export const Pricing = () => {
       return;
     }
 
+    if (tier.name === 'Hook') {
+      router.push('/app');
+      return;
+    }
+
     setLoadingTier(tier.name);
-    
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: tier.name, period: isAnnual ? 'annual' : 'monthly' }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addToast(data.error, 'error');
+      } else if (data.url) {
+        window.location.href = data.url;
+      } else {
+        addToast('Checkout not available. Please configure billing in settings.', 'warning');
+        router.push('/app/settings?tab=billing');
+      }
+    } catch {
+      addToast('Failed to start checkout. Please try again.', 'error');
+    } finally {
       setLoadingTier(null);
-      addToast(`Redirecting to checkout for ${tier.name} plan...`, "success");
-      router.push('/app/settings?tab=billing');
-    }, 1500);
+    }
   };
 
   return (

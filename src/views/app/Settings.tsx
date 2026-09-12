@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AppLayout } from '../../layouts/AppLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { 
   User, Bell, CreditCard, ShieldAlert, Sparkles, 
   AlertTriangle, LogOut, Trash2
@@ -26,27 +27,49 @@ export const Settings = () => {
   const email = user?.email || 'user@example.com';
   const initials = fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
 
+  const [editedName, setEditedName] = useState(fullName);
+  const [businessName, setBusinessName] = useState('');
+  const { updateWorkspaceName } = useWorkspace();
+
   const handleSignOut = async () => {
     await signOut();
     router.push('/login');
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     if (window.confirm("Are you absolutely sure you want to delete your account? This action cannot be undone and all data will be lost.")) {
       setIsDeleting(true);
-      setTimeout(() => {
-        addToast("Account deletion mockup. (Backend not connected)", "success");
+      try {
+        const res = await fetch('/api/settings', { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete account');
+        addToast('Account deleted. Redirecting...', 'success');
+        setTimeout(() => router.push('/'), 1500);
+      } catch {
+        addToast('Failed to delete account', 'error');
         setIsDeleting(false);
-      }, 1500);
+      }
     }
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     setIsSaving(true);
-    window.setTimeout(() => {
-      setIsSaving(false);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: editedName,
+          business_name: businessName || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      if (businessName) updateWorkspaceName(businessName);
       addToast('Profile changes saved', 'success');
-    }, 650);
+    } catch {
+      addToast('Failed to save profile', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleManageSubscription = () => {
@@ -112,7 +135,7 @@ export const Settings = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-2">Full Name</label>
-                    <input type="text" defaultValue={fullName} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-blue transition-all" />
+                    <input type="text" value={editedName} onChange={(e) => setEditedName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-blue transition-all" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-900 mb-2">Email Address</label>
@@ -121,11 +144,11 @@ export const Settings = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-900 mb-2">Business Name</label>
-                  <input type="text" placeholder="e.g. Acme Design Studio" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-blue transition-all" />
+                  <input type="text" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Acme Design Studio" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-blue transition-all" />
                 </div>
                 <div className="flex justify-end pt-4">
-                  <button onClick={() => addToast('Profile updated!', 'success')} className="bg-gray-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-black transition-colors shadow-sm">
-                    Save Changes
+                  <button onClick={handleSaveProfile} disabled={isSaving} className="bg-gray-900 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-black transition-colors shadow-sm disabled:opacity-50">
+                    {isSaving ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </div>
