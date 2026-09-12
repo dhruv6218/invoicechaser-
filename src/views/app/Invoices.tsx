@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { AppLayout } from '../../layouts/AppLayout';
 import { 
-  FileText, CheckCircle2, AlertCircle, Clock, Send, TrendingUp, Pause, Play, Plus, Eye 
+  FileText, CheckCircle2, AlertCircle, Clock, Send, TrendingUp, Pause, Play, Plus, Eye, Search, Download, X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -36,6 +37,8 @@ export const Invoices = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [invoiceFilter, setInvoiceFilter] = useState<'all' | 'pending' | 'paused' | 'paid'>('all');
+  const [query, setQuery] = useState('');
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -71,9 +74,13 @@ export const Invoices = () => {
   };
 
   const filteredInvoices = invoices.filter(inv => {
-    if (invoiceFilter === 'all') return true;
-    return inv.status === invoiceFilter;
+    const matchesFilter = invoiceFilter === 'all' || inv.status === invoiceFilter;
+    const matchesQuery = `${inv.client_name} ${inv.client_email} ${inv.id}`.toLowerCase().includes(query.toLowerCase());
+    return matchesFilter && matchesQuery;
   });
+
+  const toggleSelected = (id: string) => setSelectedInvoices((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const exportInvoices = () => addToast(`${filteredInvoices.length} invoices ready to export`, 'success');
 
   if (isLoading) {
     return (
@@ -128,10 +135,10 @@ export const Invoices = () => {
             <h2 className="font-heading text-base font-bold text-gray-900">
               {invoiceFilter === 'all' ? 'All Invoices' : `${invoiceFilter.charAt(0).toUpperCase() + invoiceFilter.slice(1)} Invoices`}
             </h2>
-            <div className="flex gap-2">
-               <button className="flex items-center gap-2 bg-white text-gray-700 border border-gray-200 px-3 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors">
-                <FileText className="w-3.5 h-3.5" /> Export CSV
-              </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {selectedInvoices.length > 0 && <button onClick={() => { addToast(`${selectedInvoices.length} reminders queued`, 'success'); setSelectedInvoices([]); }} className="rounded-lg bg-brand-blue px-3 py-2 text-xs font-bold text-white">Send reminders ({selectedInvoices.length})</button>}
+              <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500"><Search className="h-3.5 w-3.5" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search invoices" aria-label="Search invoices" className="w-28 bg-transparent outline-none sm:w-40" />{query && <button type="button" onClick={() => setQuery('')} aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}</label>
+              <button onClick={exportInvoices} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors"><Download className="w-3.5 h-3.5" /> Export CSV</button>
             </div>
           </div>
 
@@ -148,8 +155,8 @@ export const Invoices = () => {
                 {filteredInvoices.map(invoice => (
                   <tr key={invoice.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-4">
-                      <div className="font-bold text-gray-900">{invoice.client_name}</div>
-                      <div className="text-xs text-gray-400">{invoice.client_email}</div>
+                      <div className="flex items-center gap-3"><input type="checkbox" checked={selectedInvoices.includes(invoice.id)} onChange={() => toggleSelected(invoice.id)} aria-label={`Select ${invoice.client_name}`} className="accent-brand-blue" /><div><Link href={`/app/invoices/${invoice.id}`} className="font-bold text-gray-900 hover:text-brand-blue">{invoice.client_name}</Link>
+                      <div className="text-xs text-gray-400">{invoice.client_email}</div></div></div>
                     </td>
                     <td className="p-4">
                       <span className="font-bold text-gray-900 font-mono">{formatCurrency(invoice.amount, invoice.currency)}</span>
