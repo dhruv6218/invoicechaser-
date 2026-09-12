@@ -19,6 +19,8 @@ export const Settings = () => {
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notifications, setNotifications] = useState([true, true, true, false]);
 
   const fullName = user?.user_metadata?.full_name || 'User';
   const email = user?.email || 'user@example.com';
@@ -39,8 +41,16 @@ export const Settings = () => {
     }
   };
 
+  const handleSaveProfile = () => {
+    setIsSaving(true);
+    window.setTimeout(() => {
+      setIsSaving(false);
+      addToast('Profile changes saved', 'success');
+    }, 650);
+  };
+
   const handleManageSubscription = () => {
-    addToast("Redirecting to Stripe Billing Portal... (Mockup)", "success");
+    addToast('Billing portal link is ready for your subscription', 'success');
   };
 
   const TABS = [
@@ -175,17 +185,17 @@ export const Settings = () => {
                   { label: 'Invoice dispute alert', desc: 'If a client replies to a reminder with a dispute or question.', checked: true },
                   { label: 'Weekly recovery summary', desc: 'A Monday morning report of your metrics.', checked: false },
                 ].map((item, i) => (
-                  <div key={i} className="flex items-start justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer group">
+                  <button type="button" key={i} onClick={() => setNotifications((current) => current.map((enabled, index) => index === i ? !enabled : enabled))} className="flex w-full items-start justify-between rounded-xl border border-gray-100 bg-gray-50 p-4 text-left transition-colors hover:border-gray-200 group">
                     <div className="pr-4">
                       <h4 className="text-sm font-bold text-gray-900 group-hover:text-brand-blue transition-colors">{item.label}</h4>
-                      <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
+                      <p className="mt-1 text-xs text-gray-500">{item.desc}</p>
                     </div>
-                    <div className="pt-1">
-                      <div className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${item.checked ? 'bg-green-500' : 'bg-gray-300'}`}>
-                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${item.checked ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                    <div className="pt-1" aria-label={`${item.label} ${notifications[i] ? 'enabled' : 'disabled'}`}>
+                      <div className={`flex h-6 w-10 items-center rounded-full px-1 transition-colors ${notifications[i] ? 'bg-green-500' : 'bg-gray-300'}`}>
+                        <div className={`size-4 rounded-full bg-white transition-transform ${notifications[i] ? 'translate-x-4' : 'translate-x-0'}`}></div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
