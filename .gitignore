@@ -6,3 +6,5 @@ tsconfig.tsbuildinfo
 .env.*
 *.local
 yarn.lock
+.ideavo/project
+*.log
