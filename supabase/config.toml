@@ -1,0 +1,40 @@
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+
+[integration]
+external_diff = false
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+enable_signup = true
+enable_confirmations = true
+enable_email_confirmations = false
+email_change_confirmations = true
+disable_signup = false
+smtp_admin_email = "admin@example.com"
+smtp_host = ""
+smtp_port = 587
+smtp_user = ""
+smtp_pass = ""
+smtp_sender_name = "Astrix AI"
+smtp_sender_email = "noreply@astrix.ai"
+
+[storage]
+file_size_limit = "50MiB"
+```
+
+[storage.filesizes]
+avatar = "2MiB"
