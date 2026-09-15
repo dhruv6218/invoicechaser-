@@ -34,6 +34,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## API Routes
 - `POST /api/gateways` — Create gateway (encrypts API key server-side)
 - `DELETE /api/gateways` — Remove gateway
+- `GET /api/invoices/[invoiceId]` — Public: fetch invoice + gateway info for payment portal
+- `POST /api/invoices/[invoiceId]/pay` — Public: create Stripe Checkout session or return static link
+- `POST /api/invoices/[invoiceId]/status` — Public: update invoice status (dispute, already-paid, mark paid)
+- `PATCH /api/settings` — Update profile (full_name, business_name)
+- `DELETE /api/settings` — Delete user account (cascades to all data)
+- `POST /api/checkout` — Create Dodo Payments checkout session for subscription (requires DODO_PRODUCT_* env vars)
 - `GET /api/admin/users` — List all users (admin only)
 - `PATCH /api/admin/users` — Update user status / adjust credits (admin only)
 - `POST /api/ai/generate-tone` — Generate voice profile from sample emails
@@ -51,5 +57,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Notes
 - The `replit.md` describes a different (Vite-based) version — ignore it. The actual code is Next.js App Router.
 - `WATCHPACK_POLLING=true` ensures file-watch fires through the bind mount.
-- Views that previously used hardcoded mock data (Dashboard, Invoices, ToneStudio, Gateways, onboarding) now use real Supabase data.
-- Analytics, SaaSWorkspace (clients/sequences/templates/notifications/help) still use static demo data — to be wired in a future pass.
+- All major views now use real Supabase data: Dashboard, Invoices, InvoiceDetail, Clients, ClientDetail, Analytics, ToneStudio, Gateways, Settings, Pricing, Onboarding (all 3 steps), PaymentPortal, PaymentOutcome, AdminDashboard.
+- Sequences, Templates, Notifications, and Help pages still use static demo data (secondary features — to be wired in a future pass).
+- Auth: email confirmation handled via `/auth/confirm` route (verifies OTP token, redirects to `/app` or `/reset-password`).
+- Payment Portal (`/pay/[invoiceId]`): public, fetches real invoice + workspace gateway. Stripe Checkout if gateway active, static link redirect if custom gateway, message if no gateway.
+- Subscriptions: Dodo Payments checkout via `/api/checkout`. Requires `DODO_PRODUCT_SOLO_MONTHLY`, `DODO_PRODUCT_SOLO_ANNUAL`, `DODO_PRODUCT_AGENCY_MONTHLY`, `DODO_PRODUCT_AGENCY_ANNUAL` env vars (set in Dodo dashboard > Products).
+- `NEXT_PUBLIC_SITE_URL` env var used for payment redirect URLs and email links.

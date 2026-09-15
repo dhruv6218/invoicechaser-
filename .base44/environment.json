@@ -37,6 +37,26 @@
     {
       "name": "DODO_PAYMENTS_WEBHOOK_SECRET",
       "description": "Dodo Payments Webhook Secret for verifying webhook signatures"
+    },
+    {
+      "name": "DODO_PRODUCT_SOLO_MONTHLY",
+      "description": "Dodo Payments product ID for Solo plan (monthly). Find in Dodo dashboard > Products."
+    },
+    {
+      "name": "DODO_PRODUCT_SOLO_ANNUAL",
+      "description": "Dodo Payments product ID for Solo plan (annual). Find in Dodo dashboard > Products."
+    },
+    {
+      "name": "DODO_PRODUCT_AGENCY_MONTHLY",
+      "description": "Dodo Payments product ID for Agency plan (monthly). Find in Dodo dashboard > Products."
+    },
+    {
+      "name": "DODO_PRODUCT_AGENCY_ANNUAL",
+      "description": "Dodo Payments product ID for Agency plan (annual). Find in Dodo dashboard > Products."
+    },
+    {
+      "name": "NEXT_PUBLIC_SITE_URL",
+      "description": "Public URL of the app (e.g. https://your-domain.com). Used for payment redirects and email links."
     }
   ]
 }
