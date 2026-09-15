@@ -13,7 +13,16 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
+    // Verify cron secret
+    const authHeader = req.headers.get('authorization')
+    if (authHeader !== `Bearer ${Deno.env.get('CRON_SECRET')}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_KEY')!
     
@@ -29,6 +38,10 @@ serve(async (req) => {
         settings (
           ai_tone_prompt,
           payment_gateway_choice
+        ),
+        users (
+          email,
+          plan_type
         )
       `)
       .eq('status', 'pending')
@@ -87,6 +100,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('Cron job error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -95,11 +109,15 @@ serve(async (req) => {
 })
 
 async function generateAIEmail(invoice: any) {
+  // In production, integrate with OpenAI API
   const tonePrompt = invoice.settings?.ai_tone_prompt || 'Professional and friendly'
+  const clientName = invoice.client_name
   
-  return `Hi ${invoice.client_name},
+  return `Hi ${clientName},
 
 I hope you're doing well. I'm reaching out to gently remind you about invoice #${invoice.invoice_id} for $${invoice.amount}, which was due on ${invoice.due_date}.
+
+${tonePrompt ? `As per your preference: ${tonePrompt}` : ''}
 
 If you've already made the payment, please disregard this message. Otherwise, you can settle the invoice using the 1-click checkout link below.
 
@@ -109,7 +127,7 @@ Best regards,
 Your Client
 
 ---
-This email was sent automatically by Astrix AI
+This email was sent automatically by Astrix AI - Autonomous B2B Revenue Recovery Agent
 `
 }
 
@@ -128,12 +146,27 @@ async function generateCheckoutLink(invoice: any) {
 
 async function sendEmail(options: any) {
   // In production, integrate with Resend API
-  console.log('Sending email to:', options.to)
-  console.log('Subject:', options.subject)
+  const resendApiKey = Deno.env.get('RESEND_API_KEY')
   
-  // Resend API call would go here
-  // const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
-  // await resend.emails.send(...)
+  if (!resendApiKey) {
+    console.log('Resend API key not configured, skipping email send')
+    return { success: true }
+  }
   
-  return { success: true }
+  // Resend API call
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: 'Astrix AI <noreply@astrix.ai>',
+      to: options.to,
+      subject: options.subject,
+      html: options.content
+    })
+  })
+  
+  return await response.json()
 }

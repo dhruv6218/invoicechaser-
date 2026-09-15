@@ -20,8 +20,10 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Verify webhook signature (implement Stripe webhook verification)
-    // const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret)
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
     
+    // For now, parse payload directly
+    // In production, verify signature with Stripe library
     const event = JSON.parse(payload)
 
     switch (event.type) {
@@ -31,6 +33,10 @@ serve(async (req) => {
         
       case 'payment_intent.payment_failed':
         await handlePaymentFailure(supabase, event.data.object)
+        break
+        
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSuccess(supabase, event.data.object)
         break
         
       default:
@@ -54,13 +60,18 @@ async function handlePaymentSuccess(supabase: any, paymentIntent: any) {
   
   if (invoiceId) {
     // Update invoice status
-    await supabase
+    const { error: updateError } = await supabase
       .from('invoices')
       .update({ 
         status: 'paid',
         last_chased_at: new Date().toISOString()
       })
       .eq('invoice_id', invoiceId)
+
+    if (updateError) {
+      console.error('Error updating invoice:', updateError)
+      return
+    }
 
     // Log success
     await supabase
@@ -71,6 +82,22 @@ async function handlePaymentSuccess(supabase: any, paymentIntent: any) {
         email_content: 'Payment received successfully',
         decline_reason: null
       })
+
+    // Update user credits
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('user_id')
+      .eq('invoice_id', invoiceId)
+      .single()
+
+    if (invoice) {
+      await supabase
+        .from('users')
+        .update({ 
+          credits_used: supabase.raw('credits_used + 1')
+        })
+        .eq('user_id', invoice.user_id)
+    }
   }
 }
 
@@ -88,10 +115,15 @@ async function handlePaymentFailure(supabase: any, paymentIntent: any) {
         decline_reason: paymentIntent.last_payment_error?.message || 'Unknown error'
       })
 
-    // If hard decline, send AI email with fix card link
+    // If hard decline, trigger AI email with fix card link
     if (paymentIntent.last_payment_error?.code === 'card_declined') {
-      // Trigger AI email generation
-      console.log('Hard decline detected, sending fix card email')
+      // Trigger AI email generation via another function call
+      console.log('Hard decline detected, triggering fix card email')
     }
   }
+}
+
+async function handleInvoicePaymentSuccess(supabase: any, invoice: any) {
+  // Handle subscription invoice payments
+  console.log('Subscription payment succeeded:', invoice.id)
 }

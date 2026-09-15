@@ -18,11 +18,11 @@ external_diff = false
 
 [auth]
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000"]
 enable_signup = true
-enable_confirmations = true
+enable_confirmations = false
 enable_email_confirmations = false
-email_change_confirmations = true
+email_change_confirmations = false
 disable_signup = false
 smtp_admin_email = "admin@example.com"
 smtp_host = ""
@@ -32,9 +32,24 @@ smtp_pass = ""
 smtp_sender_name = "Astrix AI"
 smtp_sender_email = "noreply@astrix.ai"
 
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[auth.external]
+enable = true
+
 [storage]
 file_size_limit = "50MiB"
-```
 
 [storage.filesizes]
 avatar = "2MiB"
+
+[functions]
+verify_jwt = true
+allowed_origins = ["http://localhost:3000", "https://shmzffwsljesmqfbvvcw.supabase.co"]
+```
+
+[functions.http]
+enabled = true
