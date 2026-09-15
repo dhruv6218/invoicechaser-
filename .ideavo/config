@@ -1,0 +1,43 @@
+{
+  "systemSetup": [
+    "npm install"
+  ],
+  "templateName": "custom",
+  "projectDependencies": [
+    "next",
+    "react",
+    "react-dom",
+    "tailwindcss",
+    "typescript",
+    "@tanstack/react-table",
+    "axios",
+    "lenis",
+    "lucide-react",
+    "motion",
+    "papaparse",
+    "react-focus-lock",
+    "react-markdown",
+    "remark-gfm"
+  ],
+  "codeChecks": [
+    "eslint",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss"
+  ],
+  "buildSteps": [
+    "next build"
+  ],
+  "runStep": [
+    "next dev"
+  ],
+  "deploySteps": [],
+  "cleanupFiles": [],
+  "packageManager": "npm",
+  "envPaths": [
+    {
+      "name": "default",
+      "path": ".env"
+    }
+  ]
+}
