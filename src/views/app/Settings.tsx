@@ -7,11 +7,12 @@ import { useToast } from '../../contexts/ToastContext';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { 
   User, Bell, CreditCard, ShieldAlert, Sparkles, 
-  AlertTriangle, LogOut, Trash2
+  AlertTriangle, LogOut, Trash2, Shield
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { SecurityTab } from './SecurityTab';
 
-type SettingsTab = 'profile' | 'billing' | 'notifications' | 'agency' | 'danger';
+type SettingsTab = 'profile' | 'security' | 'billing' | 'notifications' | 'agency' | 'danger';
 
 export const Settings = () => {
   const { user, signOut } = useAuth();
@@ -78,6 +79,7 @@ export const Settings = () => {
 
   const TABS = [
     { id: 'profile', label: 'Profile', icon: User },
+    { id: 'security', label: 'Security', icon: Shield },
     { id: 'billing', label: 'Billing & Plan', icon: CreditCard },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'agency', label: 'Team & Agency', icon: Sparkles, color: 'text-brand-blue hover:bg-blue-50 hover:text-blue-700' },
@@ -153,6 +155,11 @@ export const Settings = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* SECURITY */}
+          {activeTab === 'security' && (
+            <SecurityTab />
           )}
 
           {/* BILLING */}

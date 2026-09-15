@@ -20,20 +20,25 @@ export const Contact = () => {
     const formData = new FormData(form);
 
     try {
-      const response = await fetch("https://formspree.io/f/maqppylo", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-        },
-        body: formData,
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formData.get('firstName'),
+          lastName: formData.get('lastName'),
+          email: formData.get('email'),
+          subject: formData.get('subject'),
+          message: formData.get('message'),
+        }),
       });
 
       if (response.ok) {
         setIsSuccess(true);
-        form.reset(); // Clear the form fields
+        form.reset();
         setTimeout(() => setIsSuccess(false), 5000);
       } else {
-        setSubmitError('We could not send your message. Please try again or email help.astrix@gmail.com.');
+        const data = await response.json().catch(() => ({}));
+        setSubmitError(data.error || 'We could not send your message. Please try again or email help.astrix@gmail.com.');
       }
     } catch {
       setSubmitError('We could not send your message. Please try again or email help.astrix@gmail.com.');
