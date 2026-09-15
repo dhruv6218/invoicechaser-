@@ -1,40 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import type { User as SupabaseUser, Session as SupabaseSession } from '@supabase/supabase-js';
 
-export interface User {
-  id: string;
-  email: string;
-  user_metadata: {
-    full_name?: string;
-    [key: string]: any;
-  };
-  created_at: string;
-}
-
-export interface Session {
-  access_token: string;
-  user: User;
-}
-
-const MOCK_USER: User = {
-  id: 'mock-user-123',
-  email: 'alex@company.com',
-  user_metadata: { full_name: 'Alex Rivera' },
-  created_at: new Date().toISOString(),
-};
-
-const MOCK_SESSION: Session = {
-  access_token: 'mock-access-token',
-  user: MOCK_USER,
-};
-
-const USER_STORAGE_KEY = 'astrix_mock_user';
 const ADMIN_STORAGE_KEY = 'astrix_admin_session';
 
 interface AuthContextType {
-  session: Session | null;
-  user: User | null;
+  session: SupabaseSession | null;
+  user: SupabaseUser | null;
   isInitializing: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -48,9 +22,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType>({
-  session: MOCK_SESSION,
-  user: MOCK_USER,
-  isInitializing: false,
+  session: null,
+  user: null,
+  isInitializing: true,
   isAdmin: false,
   signOut: async () => {},
   sendMagicLink: async () => ({ error: null }),
@@ -63,85 +37,69 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<Session | null>(MOCK_SESSION);
-  const [user, setUser] = useState<User | null>(MOCK_USER);
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [session, setSession] = useState<SupabaseSession | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-      if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          setSession({ access_token: 'mock-access-token', user: parsedUser });
-        } catch {
-          // Keep default mock user
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (typeof window !== 'undefined') {
+        const adminSession = localStorage.getItem(ADMIN_STORAGE_KEY);
+        if (adminSession === 'true') {
+          setIsAdmin(true);
         }
       }
+      setIsInitializing(false);
+    };
+    init();
 
-      const adminSession = localStorage.getItem(ADMIN_STORAGE_KEY);
-      if (adminSession === 'true') {
-        setIsAdmin(true);
-      }
-    }
-    setIsInitializing(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const saveUserSession = (newUser: User) => {
-    setUser(newUser);
-    setSession({ access_token: 'mock-access-token', user: newUser });
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(newUser));
-    }
-  };
-
   const sendMagicLink = async (email: string): Promise<{ error: string | null }> => {
-    const updatedUser: User = {
-      ...MOCK_USER,
-      email,
-      user_metadata: { full_name: user?.user_metadata?.full_name || email.split('@')[0] },
-    };
-    saveUserSession(updatedUser);
-    return { error: null };
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    return { error: error?.message ?? null };
   };
 
-  const signIn = async (email: string, _password?: string): Promise<{ error: string | null }> => {
-    const updatedUser: User = {
-      ...MOCK_USER,
-      email,
-      user_metadata: { full_name: user?.user_metadata?.full_name || email.split('@')[0] },
-    };
-    saveUserSession(updatedUser);
-    return { error: null };
+  const signIn = async (email: string, password?: string): Promise<{ error: string | null }> => {
+    if (password) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error?.message ?? null };
+    }
+    return sendMagicLink(email);
   };
 
-  const signUp = async (email: string, _method?: string, name?: string, _password?: string): Promise<{ error: string | null; needsConfirmation?: boolean }> => {
-    const updatedUser: User = {
-      ...MOCK_USER,
-      email,
-      user_metadata: { full_name: name || email.split('@')[0] || 'Demo User' },
-    };
-    saveUserSession(updatedUser);
-    return { error: null, needsConfirmation: true };
+  const signUp = async (email: string, _method?: string, name?: string, password?: string): Promise<{ error: string | null; needsConfirmation?: boolean }> => {
+    if (password) {
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+      return { error: error?.message ?? null, needsConfirmation: !!error };
+    }
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    return { error: error?.message ?? null, needsConfirmation: true };
   };
 
-  const resetPassword = async (_email: string): Promise<{ error: string | null }> => {
-    return { error: null };
+  const resetPassword = async (email: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    return { error: error?.message ?? null };
   };
 
-  const updatePassword = async (_password: string): Promise<{ error: string | null }> => {
-    return { error: null };
+  const updatePassword = async (password: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.updateUser({ password });
+    return { error: error?.message ?? null };
   };
 
   const signInWithGoogle = async () => {
-    const googleUser: User = {
-      ...MOCK_USER,
-      email: 'alex.rivera.google@gmail.com',
-      user_metadata: { full_name: 'Alex Rivera' },
-    };
-    saveUserSession(googleUser);
+    await supabase.auth.signInWithOAuth({ provider: 'google' });
   };
 
   const signInAsAdmin = async (email: string, password: string): Promise<{ error: string | null }> => {
@@ -156,12 +114,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    await supabase.auth.signOut();
     setIsAdmin(false);
-    setUser(null);
-    setSession(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(ADMIN_STORAGE_KEY);
-      localStorage.removeItem(USER_STORAGE_KEY);
     }
   };
 

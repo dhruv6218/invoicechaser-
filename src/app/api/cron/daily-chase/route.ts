@@ -42,9 +42,9 @@ export async function GET(request: NextRequest) {
       try {
         const result = await processInvoice(invoice, supabase);
         results.push(result);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`Error processing invoice ${invoice.invoice_id}:`, error);
-        results.push({ invoice_id: invoice.invoice_id, success: false, error: error.message });
+        results.push({ invoice_id: invoice.invoice_id, success: false, error: error.message ?? 'Unknown error' });
       }
     }
     
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       successful: results.filter(r => r.success).length,
       results
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Cron job error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
