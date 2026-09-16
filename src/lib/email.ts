@@ -26,7 +26,7 @@ interface SendEmailParams {
 
 export async function sendEmail(params: SendEmailParams) {
   const resend = getResend();
-  const from = params.from || 'Astrix AI <reminders@astrix.ai>';
+  const from = params.from || process.env.RESEND_FROM_EMAIL || 'Astrix AI <onboarding@resend.dev>';
 
   const { data, error } = await resend.emails.send({
     from,

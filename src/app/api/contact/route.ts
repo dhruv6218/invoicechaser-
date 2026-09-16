@@ -91,8 +91,11 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`;
 
+    // Use RESEND_FROM_EMAIL if configured, otherwise use Resend's test from address
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'Astrix Contact <onboarding@resend.dev>';
+
     const { error } = await resend.emails.send({
-      from: 'Astrix Contact <noreply@astrix.ai>',
+      from: fromEmail,
       to: [contactEmail],
       replyTo: email,
       subject: `[Astrix Contact] ${subjectLabel} — from ${fullName}`,

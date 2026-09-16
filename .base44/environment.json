@@ -31,6 +31,14 @@
       "requiredAtBoot": true
     },
     {
+      "name": "RESEND_FROM_EMAIL",
+      "description": "From address for outgoing emails (e.g. 'Astrix AI <noreply@yourdomain.com>'). Must be a verified domain in Resend. Defaults to onboarding@resend.dev if not set."
+    },
+    {
+      "name": "CONTACT_EMAIL",
+      "description": "Email address where contact form submissions are sent (your personal/support inbox)"
+    },
+    {
       "name": "DODO_PAYMENTS_API_KEY",
       "description": "Dodo Payments API Key for subscription management — from Dodo Payments Dashboard"
     },

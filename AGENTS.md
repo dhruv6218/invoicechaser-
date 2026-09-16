@@ -47,6 +47,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `GET /api/cron/daily-chase` — Daily Chase Engine (scans overdue invoices, sends AI emails via Resend)
 - `POST /api/webhooks/stripe` — Payment success/decline handling
 - `POST /api/webhooks/dodo` — Subscription lifecycle (created/updated/canceled)
+- `POST /api/contact` — Contact form submission (sends email via Resend to CONTACT_EMAIL)
 
 ## Supabase Setup (required before app works)
 1. Run `supabase/schema.sql` in Supabase SQL Editor
@@ -60,6 +61,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - All major views now use real Supabase data: Dashboard, Invoices, InvoiceDetail, Clients, ClientDetail, Analytics, ToneStudio, Gateways, Settings, Pricing, Onboarding (all 3 steps), PaymentPortal, PaymentOutcome, AdminDashboard.
 - Sequences, Templates, Notifications, and Help pages still use static demo data (secondary features — to be wired in a future pass).
 - Auth: email confirmation handled via `/auth/confirm` route (verifies OTP token, redirects to `/app` or `/reset-password`).
+- 2FA: Supabase MFA (TOTP) — enrollment in Settings > Security tab, challenge on Login. Uses `supabase.auth.mfa.*` APIs.
+- Admin: `profiles.is_admin` flag checked via `signInAsAdmin`. Setup: sign up at `/godview`, then run `supabase/admin-setup.sql` to grant admin.
+- Contact form: POST `/api/contact` sends email via Resend to `CONTACT_EMAIL` env var. Uses `RESEND_FROM_EMAIL` for from address (defaults to `onboarding@resend.dev` — change to verified domain for production).
 - Payment Portal (`/pay/[invoiceId]`): public, fetches real invoice + workspace gateway. Stripe Checkout if gateway active, static link redirect if custom gateway, message if no gateway.
 - Subscriptions: Dodo Payments checkout via `/api/checkout`. Requires `DODO_PRODUCT_SOLO_MONTHLY`, `DODO_PRODUCT_SOLO_ANNUAL`, `DODO_PRODUCT_AGENCY_MONTHLY`, `DODO_PRODUCT_AGENCY_ANNUAL` env vars (set in Dodo dashboard > Products).
+- Webhook URLs (configure in provider dashboards):
+  - Dodo Payments: `https://your-domain.com/api/webhooks/dodo`
+  - Stripe: `https://your-domain.com/api/webhooks/stripe`
+  - Cron (daily chase): `https://your-domain.com/api/cron/daily-chase`
 - `NEXT_PUBLIC_SITE_URL` env var used for payment redirect URLs and email links.
+- Email from address: `RESEND_FROM_EMAIL` env var (e.g. `Astrix AI <noreply@yourdomain.com>`). Domain must be verified in Resend. Falls back to `onboarding@resend.dev`.
