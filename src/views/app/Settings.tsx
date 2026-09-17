@@ -1,18 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppLayout } from '../../layouts/AppLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { 
   User, Bell, CreditCard, ShieldAlert, Sparkles, 
-  AlertTriangle, LogOut, Trash2, Shield
+  AlertTriangle, LogOut, Trash2, Shield, Loader2, CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SecurityTab } from './SecurityTab';
+import { getSupabaseBrowser } from '../../lib/supabase-browser';
 
 type SettingsTab = 'profile' | 'security' | 'billing' | 'notifications' | 'agency' | 'danger';
+
+interface Subscription {
+  plan: string;
+  status: string;
+  current_period_end: string | null;
+}
+
+const PLAN_LABELS: Record<string, string> = {
+  Hook: 'Hook — Free Tier',
+  Solo: 'Solo — $29/mo',
+  Agency: 'Agency — $99/mo',
+};
+
+const PLAN_DESC: Record<string, string> = {
+  Hook: '3 free automated recoveries per month.',
+  Solo: 'Unlimited invoices and recoveries.',
+  Agency: 'Team members, white-label, and priority support.',
+};
 
 export const Settings = () => {
   const { user, signOut } = useAuth();
@@ -23,6 +42,8 @@ export const Settings = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notifications, setNotifications] = useState([true, true, true, false]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [subLoading, setSubLoading] = useState(false);
 
   const fullName = user?.user_metadata?.full_name || 'User';
   const email = user?.email || 'user@example.com';
@@ -31,6 +52,33 @@ export const Settings = () => {
   const [editedName, setEditedName] = useState(fullName);
   const [businessName, setBusinessName] = useState('');
   const { updateWorkspaceName } = useWorkspace();
+
+  // Fetch real subscription data when billing tab is opened
+  useEffect(() => {
+    if (activeTab !== 'billing' || !user) return;
+    setSubLoading(true);
+    const supabase = getSupabaseBrowser();
+    supabase
+      .from('subscriptions')
+      .select('plan, status, current_period_end')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setSubscription(data);
+        } else {
+          setSubscription(null);
+        }
+        setSubLoading(false);
+      });
+  }, [activeTab, user]);
+
+  const currentPlan = subscription?.plan || 'Hook';
+  const planLabel = PLAN_LABELS[currentPlan] || 'Hook — Free Tier';
+  const planDesc = PLAN_DESC[currentPlan] || PLAN_DESC['Hook'];
+  const isPaidPlan = currentPlan !== 'Hook';
 
   const handleSignOut = async () => {
     await signOut();
@@ -71,10 +119,6 @@ export const Settings = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleManageSubscription = () => {
-    addToast('Billing portal link is ready for your subscription', 'success');
   };
 
   const TABS = [
@@ -173,12 +217,34 @@ export const Settings = () => {
                       <Sparkles className="w-5 h-5 text-brand-yellow" />
                       <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Current Plan</span>
                     </div>
-                    <h2 className="font-heading text-3xl font-black text-white mb-2">Hook � Free Tier</h2>
-                    <p className="text-gray-400 text-sm">3 free automated recoveries per month. (0 remaining this month)</p>
+                    {subLoading ? (
+                      <div className="flex items-center gap-2 text-gray-400">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span className="text-sm">Loading subscription...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <h2 className="font-heading text-3xl font-black text-white mb-2">{planLabel}</h2>
+                        <p className="text-gray-400 text-sm">
+                          {planDesc}
+                          {isPaidPlan && subscription?.current_period_end
+                            ? ` Renews on ${new Date(subscription.current_period_end).toLocaleDateString()}.`
+                            : !isPaidPlan ? ' (0 remaining this month)' : ''}
+                        </p>
+                        {subscription?.status === 'past_due' && (
+                          <p className="text-red-400 text-sm mt-1 font-semibold">⚠ Payment past due — please update your payment method.</p>
+                        )}
+                        {subscription?.status === 'canceled' && (
+                          <p className="text-yellow-400 text-sm mt-1 font-semibold">Subscription canceled — access ends at period end.</p>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <button onClick={() => router.push('/pricing')} className="w-full md:w-auto bg-brand-blue text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg text-sm whitespace-nowrap">
-                    Upgrade to Solo � $29/mo
-                  </button>
+                  {!subLoading && !isPaidPlan && (
+                    <button onClick={() => router.push('/pricing')} className="w-full md:w-auto bg-brand-blue text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg text-sm whitespace-nowrap">
+                      Upgrade to Solo → $29/mo
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -190,12 +256,36 @@ export const Settings = () => {
                   </div>
                 </div>
                 <div className="p-6">
-                  <button 
-                    onClick={handleManageSubscription}
-                    className="flex items-center gap-2 text-sm font-bold text-brand-blue hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl"
-                  >
-                    <CreditCard className="w-4 h-4" /> Manage Billing
-                  </button>
+                  {isPaidPlan ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">Active Subscription: {currentPlan}</p>
+                          <p className="text-xs text-gray-500">
+                            {subscription?.status === 'active' ? 'Active' : subscription?.status}
+                            {subscription?.current_period_end && ` · until ${new Date(subscription.current_period_end).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => router.push('/pricing')}
+                        className="flex items-center gap-2 text-sm font-bold text-brand-blue hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl"
+                      >
+                        <CreditCard className="w-4 h-4" /> Change Plan
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-500">You are on the free Hook plan. Upgrade to unlock unlimited recoveries.</p>
+                      <button
+                        onClick={() => router.push('/pricing')}
+                        className="flex items-center gap-2 text-sm font-bold text-brand-blue hover:text-blue-700 transition-colors bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl"
+                      >
+                        <CreditCard className="w-4 h-4" /> View Plans
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
